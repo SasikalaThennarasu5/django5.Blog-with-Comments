@@ -1,46 +1,28 @@
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib import messages
 from django.urls import reverse_lazy
-from .models import Post, Comment
-from .forms import PostForm, CommentForm
-from django.contrib.auth.forms import UserCreationForm
-from django.views import View
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+from django.http import HttpResponseForbidden
 
+from .models import Post, Comment
+from .forms import PostForm
 
 
 class PostListView(ListView):
     model = Post
     template_name = "blog/post_list.html"
     context_object_name = "posts"
-    paginate_by = 5
-    ordering = ["-created_at"]
+    paginate_by = 6
 
 
 class PostDetailView(DetailView):
     model = Post
     template_name = "blog/post_detail.html"
     context_object_name = "post"
-    slug_field = "slug"
-    slug_url_kwarg = "slug"
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["comments"] = self.object.comments.all()
-        context["form"] = CommentForm()
-        return context
-
-    def post(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        form = CommentForm(request.POST)
-        if form.is_valid():
-            Comment.objects.create(
-                post=self.object, user=request.user, text=form.cleaned_data["text"]
-            )
-            messages.success(request, "Comment added successfully!")
-            return redirect("post_detail", slug=self.object.slug)
-        return self.render_to_response(self.get_context_data(form=form))
 
 
 class PostCreateView(LoginRequiredMixin, CreateView):
@@ -50,7 +32,6 @@ class PostCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.author = self.request.user
-        messages.success(self.request, "Post created successfully!")
         return super().form_valid(form)
 
 
@@ -58,34 +39,47 @@ class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Post
     form_class = PostForm
     template_name = "blog/post_form.html"
-    slug_field = "slug"
-    slug_url_kwarg = "slug"
 
     def test_func(self):
-        post = self.get_object()
-        return self.request.user == post.author
+        return self.get_object().author == self.request.user
 
 
 class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Post
     template_name = "blog/post_confirm_delete.html"
-    success_url = reverse_lazy("post_list")
-    slug_field = "slug"
-    slug_url_kwarg = "slug"
+    success_url = reverse_lazy("blog:post_list")
 
     def test_func(self):
-        post = self.get_object()
-        return self.request.user == post.author
+        return self.get_object().author == self.request.user
 
-class SignupView(View):
-    def get(self, request):
-        form = UserCreationForm()
-        return render(request, "registration/signup.html", {"form": form})
 
-    def post(self, request):
+@require_POST
+@login_required
+def add_comment(request, slug):
+    post = get_object_or_404(Post, slug=slug)
+    text = request.POST.get("text")
+    if text:
+        Comment.objects.create(post=post, user=request.user, text=text)
+    return redirect(post.get_absolute_url())
+
+
+@login_required
+def delete_comment(request, pk):
+    comment = get_object_or_404(Comment, pk=pk)
+    if comment.user != request.user:
+        return HttpResponseForbidden("You cannot delete this comment")
+    url = comment.post.get_absolute_url()
+    comment.delete()
+    return redirect(url)
+
+
+def register(request):
+    if request.method == "POST":
         form = UserCreationForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Account created! Please log in.")
+            messages.success(request, "Account created. You can now log in.")
             return redirect("login")
-        return render(request, "registration/signup.html", {"form": form})
+    else:
+        form = UserCreationForm()
+    return render(request, "registration/register.html", {"form": form})

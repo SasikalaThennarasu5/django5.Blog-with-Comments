@@ -1,0 +1,19 @@
+<div class="list-group">
+  {% for comment in comments %}
+    <div class="list-group-item d-flex justify-content-between align-items-start">
+      <div>
+        <div class="fw-bold">{{ comment.user.username }}</div>
+        <small class="text-muted">{{ comment.created_at|date:"M d, Y H:i" }}</small>
+        <p class="mb-1">{{ comment.text|linebreaks }}</p>
+      </div>
+      {% if user == comment.user %}
+        <form action="{% url 'blog:delete_comment' pk=comment.pk %}" method="post">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="text-muted">No comments yet.</p>
+  {% endfor %}
+</div>
