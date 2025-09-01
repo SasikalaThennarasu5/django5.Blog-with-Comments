@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ view.object|default:"New Post" }}</h2>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  <div class="mb-3">
+    {{ form.title.label_tag }}
+    {{ form.title|add_class:"form-control" }}
+  </div>
+  <div class="mb-3">
+    {{ form.content.label_tag }}
+    {{ form.content|add_class:"form-control" }}
+  </div>
+  <div class="mb-3">
+    {{ form.image.label_tag }}
+    {{ form.image|add_class:"form-control" }}
+  </div>
+  <button class="btn btn-primary" type="submit">Save</button>
+</form>
+{% endblock %}
